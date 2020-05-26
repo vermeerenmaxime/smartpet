@@ -46,7 +46,6 @@ class DataRepository:
     def add_hoeveelheid(hoeveelheid):
         sql = "INSERT INTO tbl_metingen (sensor,hoeveelheid) VALUES (%s,%s)"
         params = [1, hoeveelheid]
-        print(sql)
         return Database.execute_sql(sql, params)
 
     @staticmethod

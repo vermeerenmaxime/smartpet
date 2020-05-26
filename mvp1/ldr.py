@@ -30,31 +30,35 @@ class MCP3008:
 try:
     GPIO.cleanup()
     #MCP = MCP3008()
-   
-    GPIO.setmode(GPIO.BOARD)
+
+    GPIO.setmode(GPIO.BCM)
     GPIO.setup(pin_servo, GPIO.OUT)
+
     servo = GPIO.PWM(pin_servo, 50)
+    servo.start(6)
 
     while True:
+        # GPIO.output(pin_servo, 1)
         # 0 graden (neutraal)
-        servo.ChangeDutyCycle(6)
+        # servo.ChangeDutyCycle(3)
         print(0)
-        time.sleep(1)
+        time.sleep(5)
 
         # -90 graden (rechts)
-        servo.ChangeDutyCycle(2.5)
-        print(-90)
-        time.sleep(1)
+        # GPIO.output(pin_servo, 0)
+        # servo.ChangeDutyCycle(11)
+        # print(-90)
+        # time.sleep(5)
 
-        # 0 graden (neutraal)
-        servo.ChangeDutyCycle(6)
-        print(0)
-        time.sleep(1)
+        # # 0 graden (neutraal)
+        # servo.ChangeDutyCycle(6)
+        # print(0)
+        # time.sleep(1)
 
-        # 90 graden (links) 
-        servo.ChangeDutyCycle(11)
-        print(90)
-        time.sleep(1)
+        # # 90 graden (links)
+        # servo.ChangeDutyCycle(11)
+        # print(90)
+        # time.sleep(1)
         # waarde_ldr = MCP.read_channel(0)
         # print(waarde_ldr)
         # time.sleep(0.1)
@@ -62,6 +66,6 @@ try:
 except KeyboardInterrupt as e:
     print(e)
 finally:
-    servo.stop()
+    # servo.stop()
     GPIO.cleanup()
     print("Finish")

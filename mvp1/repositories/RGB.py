@@ -2,7 +2,7 @@ from RPi import GPIO
 import time
 
 
-class Rgb:
+class RGB:
     def __init__(self, pins):
         self.led_red = pins[0]
         self.led_green = pins[1]
@@ -18,7 +18,7 @@ class Rgb:
         GPIO.output(self.led_blue, colors[2])
 
     def led_knipper(self, colors):
-        
+
         self.led_branden(colors)
 
         time.sleep(1)

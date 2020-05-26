@@ -1,6 +1,6 @@
 # pylint: skip-file
 from repositories.DataRepository import DataRepository
-from flask import Flask, jsonify
+from flask import Flask, request, jsonify
 from flask_socketio import SocketIO
 from flask_cors import CORS
 
@@ -8,8 +8,8 @@ import time
 import threading
 
 # Code voor led
-from helpers.klasseknop import Button
-from helpers.rgb import Rgb
+from repositories.klasseknop import Button
+from repositories.RGB import RGB
 from RPi import GPIO
 
 led1 = 21
