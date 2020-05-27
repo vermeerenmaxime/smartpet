@@ -5,6 +5,7 @@ today = date.today()
 tomorrow = date.today() + timedelta(1)
 week = date.today() - timedelta(7)
 month = date.today() - timedelta(30)
+year = date.today() - timedelta(365)
 
 
 class DataRepository:
@@ -20,20 +21,32 @@ class DataRepository:
 
     @staticmethod
     def read_history():
-        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,meetdatum FROM tbl_metingen GROUP BY CAST(meetdatum AS DATE) ORDER BY meetdatum"
+        sql = "SELECT hoeveelheid,meetdatum FROM tbl_metingen ORDER BY meetdatum"
         return Database.get_rows(sql)
 
     @staticmethod
-    def read_history_today():
+    def read_history_day():
         sql = "SELECT hoeveelheid,meetdatum FROM tbl_metingen WHERE meetdatum between %s and %s ORDER BY meetdatum"
         params = [today, tomorrow]
-        print(today)
+        
         return Database.get_rows(sql, params)
 
     @staticmethod
     def read_history_week():
-        sql = "SELECT hoeveelheid,meetdatum FROM tbl_metingen WHERE meetdatum BETWEEN %s AND %s ORDER BY meetdatum"
+        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,meetdatum FROM tbl_metingen WHERE meetdatum BETWEEN %s AND %s GROUP BY CAST(meetdatum AS DATE) ORDER BY meetdatum"
         params = [week, tomorrow]
+        return Database.get_rows(sql, params)
+
+    @staticmethod
+    def read_history_month():
+        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,meetdatum,month(meetdatum) as `month` FROM tbl_metingen WHERE meetdatum BETWEEN %s AND %s GROUP BY month(meetdatum) ORDER BY meetdatum"
+        params = [month, tomorrow]
+        return Database.get_rows(sql, params)
+
+    @staticmethod
+    def read_history_year():
+        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,meetdatum, year(meetdatum) as `year` FROM tbl_metingen WHERE meetdatum BETWEEN %s AND %s GROUP BY year(meetdatum) ORDER BY meetdatum"
+        params = [year, tomorrow]
         return Database.get_rows(sql, params)
 
     @staticmethod

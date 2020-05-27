@@ -5,6 +5,7 @@ from flask_socketio import SocketIO
 from flask_cors import CORS
 
 
+
 import time
 import threading
 
@@ -13,6 +14,7 @@ from repositories.klasseknop import Button
 from repositories.DataRepository import DataRepository
 from repositories.RGB import RGB
 from repositories.Servo import Servo
+from repositories.MCP3008 import MCP3008
 from RPi import GPIO
 
 # Start app
@@ -59,10 +61,10 @@ def get_history():
         return jsonify(s), 200
 
 
-@app.route(endpoint + '/history/today', methods=['GET'])
-def get_history_today():
+@app.route(endpoint + '/history/day', methods=['GET'])
+def get_history_day():
     if request.method == 'GET':
-        s = DataRepository.read_history_today()
+        s = DataRepository.read_history_day()
         return jsonify(s), 200
 
 
@@ -70,6 +72,18 @@ def get_history_today():
 def get_history_week():
     if request.method == 'GET':
         s = DataRepository.read_history_week()
+        return jsonify(s), 200
+
+@app.route(endpoint + '/history/month', methods=['GET'])
+def get_history_month():
+    if request.method == 'GET':
+        s = DataRepository.read_history_month()
+        return jsonify(s), 200
+
+@app.route(endpoint + '/history/year', methods=['GET'])
+def get_history_year():
+    if request.method == 'GET':
+        s = DataRepository.read_history_year()
         return jsonify(s), 200
 
 
@@ -120,39 +134,51 @@ def add_hoeveelheid_socket(data):
     fill(data)
 
 def fill(data):
-    print(data)
-    print("huts")
-    led_proces.start()
-    while(gewicht_voederbak+hoeveelheid <= gewicht_voederbak_huidig):
+    global gewicht_voederbak,gewicht_voederbak_huidig
+    hoeveelheid = int(data['hoeveelheid'])
+    print(gewicht_voederbak+hoeveelheid,gewicht_voederbak_huidig)
+
+    while(gewicht_voederbak+hoeveelheid >= gewicht_voederbak_huidig):
         servo.start()
+        gewicht_voederbak_huidig += 50
+        print(f"Huidig gewicht: {gewicht_voederbak_huidig}")
+        time.sleep(1)
     else:
         servo.stop()
         gewicht_voederbak = gewicht_voederbak_huidig
 
-def enable_led():
-    rgb = RGB(pins_rgb)
-    colors = [1, 0, 1]
-    for i in range(0,6):
-        print("LED Activate")
-        rgb.led_knipper(colors)
-        time.sleep(1)
 
-led_proces = threading.Thread(target=enable_led)
-led_proces.start()
+def ldr_inlezen():
+    mcp = MCP3008()
+    rgb = RGB(pins_rgb)
+
+    while True:
+
+        waarde_ldr = mcp.read_channel(0)
+        if(waarde_ldr > 500):
+            rgb.led_branden([1,1,1])
+        else:
+            rgb.led_doven()
+        
+        time.sleep(5)
+
+def gewicht_inlezen_voederbak():
+    pass    
+
+ldr_proces = threading.Thread(target=ldr_inlezen)
+ldr_proces.start()
 
 # Start app
 if __name__ == '__main__':
     print("** SmartPET start **")
-    app.run(host="0.0.0.0", port=5000, debug=False)
-    # try:
-    #     setup()
-    #     servo = Servo(pin_servo)
-    #     servo.start()
-    #     while True:
-    #         time.sleep(2)
+    socketio.run(app,host="0.0.0.0", port=5000, debug=True)
+    try:
+        #setup()
+        pass
+        
 
-    # except KeyboardInterrupt as e:
-    #     print(e)
-    # finally:
-    #     GPIO.cleanup()
-    #     print("Finish")
+    except KeyboardInterrupt as e:
+        print(e)
+    finally:
+        GPIO.cleanup()
+        print("Finish")
