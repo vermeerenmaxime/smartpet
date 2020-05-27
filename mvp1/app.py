@@ -8,6 +8,7 @@ from flask_cors import CORS
 
 import time
 import threading
+import sys
 
 # Custom imports
 from repositories.klasseknop import Button
@@ -15,6 +16,7 @@ from repositories.DataRepository import DataRepository
 from repositories.RGB import RGB
 from repositories.Servo import Servo
 from repositories.MCP3008 import MCP3008
+from repositories.HX711 import HX711
 from RPi import GPIO
 
 # Start app
@@ -163,15 +165,28 @@ def ldr_inlezen():
         time.sleep(5)
 
 def gewicht_inlezen_voederbak():
-    pass    
+    hx = HX711(5, 6)
+    hx.set_reading_format("MSB", "MSB")
+    hx.set_reference_unit(413)
+    hx.reset()
+    hx.tare()    
+    while True:
+        gewicht = max(0, int(hx.get_weight(5)))
+        print(f"{gewicht}g")
+        hx.power_down()
+        hx.power_up()
+        time.sleep(1)
 
 ldr_proces = threading.Thread(target=ldr_inlezen)
 ldr_proces.start()
 
+gewicht_voederbak_proces = threading.Thread(target=gewicht_inlezen_voederbak)
+gewicht_voederbak_proces.start()
+
 # Start app
 if __name__ == '__main__':
     print("** SmartPET start **")
-    socketio.run(app,host="0.0.0.0", port=5000, debug=True)
+    socketio.run(app,host="0.0.0.0", port=5000, debug=False)
     try:
         #setup()
         pass
@@ -180,5 +195,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt as e:
         print(e)
     finally:
+        sys.exit()
         GPIO.cleanup()
         print("Finish")
