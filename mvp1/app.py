@@ -11,13 +11,14 @@ import threading
 import sys
 
 # Custom imports
+from RPi import GPIO
 from repositories.klasseknop import Button
 from repositories.DataRepository import DataRepository
 from repositories.RGB import RGB
 from repositories.Servo import Servo
 from repositories.MCP3008 import MCP3008
 from repositories.HX711 import HX711
-from RPi import GPIO
+
 
 # Start app
 app = Flask(__name__)
@@ -27,6 +28,8 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 CORS(app)
 
 # pins
+
+
 pin_servo = 21
 
 pins_rgb = [4, 17, 27]
@@ -38,7 +41,7 @@ pin_lcd_e = 3
 pin_hx711_data = 5
 pin_hx711_clock = 6
 
-servo = Servo(pin_servo)
+
 
 # data
 gewicht_voederbak = 200
@@ -136,13 +139,14 @@ def add_hoeveelheid_socket(data):
     fill(data)
 
 def fill(data):
+    servo = Servo(pin_servo)
     global gewicht_voederbak,gewicht_voederbak_huidig
     hoeveelheid = int(data['hoeveelheid'])
     print(gewicht_voederbak+hoeveelheid,gewicht_voederbak_huidig)
 
-    while(gewicht_voederbak+hoeveelheid >= gewicht_voederbak_huidig):
+    while(0+hoeveelheid >= gewicht_voederbak_huidig):
         servo.start()
-        gewicht_voederbak_huidig += 50
+        #gewicht_voederbak_huidig += 50
         print(f"Huidig gewicht: {gewicht_voederbak_huidig}")
         time.sleep(1)
     else:
@@ -162,6 +166,8 @@ def ldr_inlezen():
         else:
             rgb.led_doven()
         
+        data = DataRepository.ldr_inlezen(
+            gegevens['hoeveelheid'])
         time.sleep(5)
 
 def gewicht_inlezen_voederbak():
@@ -170,9 +176,10 @@ def gewicht_inlezen_voederbak():
     hx.set_reference_unit(413)
     hx.reset()
     hx.tare()    
+    global gewicht_voederbak_huidig
     while True:
-        gewicht = max(0, int(hx.get_weight(5)))
-        print(f"{gewicht}g")
+        gewicht_voederbak_huidig = max(0, int(hx.get_weight(5)))
+        print(f"{gewicht_voederbak_huidig}g")
         hx.power_down()
         hx.power_up()
         time.sleep(1)
@@ -187,14 +194,14 @@ gewicht_voederbak_proces.start()
 if __name__ == '__main__':
     print("** SmartPET start **")
     socketio.run(app,host="0.0.0.0", port=5000, debug=False)
-    try:
-        #setup()
-        pass
+    # try:
+    #     #setup()
+    #     pass
         
 
-    except KeyboardInterrupt as e:
-        print(e)
-    finally:
-        sys.exit()
-        GPIO.cleanup()
-        print("Finish")
+    # except KeyboardInterrupt as e:
+    #     print(e)
+    # finally:
+    #     sys.exit()
+    #     GPIO.cleanup()
+    #     print("Finish")

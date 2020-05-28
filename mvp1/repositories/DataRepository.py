@@ -72,3 +72,10 @@ class DataRepository:
         sql = "SELECT daily_goal, daily_range, appname, datum FROM tbl_settings WHERE IDsettings = 1"
 
         return Database.get_one_row(sql)
+
+    # @staticmethod
+    # def ldr_inlezen(hoeveelheid):
+    #     sql = "INSERT INTO tbl_metingen (sensor,hoeveelheid) VALUES (%s,%s)"
+    #     params = [4, hoeveelheid]
+    #     return Database.execute_sql(sql, params)
+
