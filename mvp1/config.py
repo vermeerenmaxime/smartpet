@@ -1,8 +1,8 @@
 [connector_python]
-user = root
+user = mysql
 host = 127.0.0.1
 port = 3306
-password = mysql
+password = max0808
 database = smartpet01
 
 [application_config]

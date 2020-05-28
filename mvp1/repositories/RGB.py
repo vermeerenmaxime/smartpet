@@ -1,3 +1,4 @@
+# pylint: skip-file
 from RPi import GPIO
 import time
 
@@ -8,7 +9,6 @@ class RGB:
         self.led_green = pins[1]
         self.led_blue = pins[2]
 
-        GPIO.setmode(GPIO.BCM)
         GPIO.setup(pins, GPIO.OUT)
 
     def led_branden(self, colors):
@@ -29,3 +29,17 @@ class RGB:
         GPIO.output(self.led_red, 0)
         GPIO.output(self.led_green, 0)
         GPIO.output(self.led_blue, 0)
+
+try:
+    GPIO.setmode(GPIO.BCM)
+    rgb = RGB([4, 17, 27])
+    
+    while True:
+        rgb.led_knipper([1,0,1])
+        time.sleep(2)
+
+except KeyboardInterrupt as e:
+    print(e)
+finally:
+    GPIO.cleanup()
+    print("Finish")

@@ -57,7 +57,7 @@ class DataRepository:
 
     @staticmethod
     def add_hoeveelheid(hoeveelheid):
-        sql = "INSERT INTO tbl_metingen (sensor,hoeveelheid) VALUES (%s,%s)"
+        sql = "INSERT INTO tbl_metingen (device_id,hoeveelheid) VALUES (%s,%s)"
         params = [1, hoeveelheid]
         return Database.execute_sql(sql, params)
 
@@ -73,9 +73,9 @@ class DataRepository:
 
         return Database.get_one_row(sql)
 
-    # @staticmethod
-    # def ldr_inlezen(hoeveelheid):
-    #     sql = "INSERT INTO tbl_metingen (sensor,hoeveelheid) VALUES (%s,%s)"
-    #     params = [4, hoeveelheid]
-    #     return Database.execute_sql(sql, params)
+    @staticmethod
+    def ldr_inlezen(hoeveelheid):
+        sql = "INSERT INTO tbl_metingen (device_id,hoeveelheid,actiecode) VALUES (%s,%s,%s)"
+        params = [4, hoeveelheid,"CHECK"]
+        return Database.execute_sql(sql, params)
 
