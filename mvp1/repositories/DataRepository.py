@@ -1,3 +1,4 @@
+# pylint: skip-file
 from .Database import Database
 from datetime import date, timedelta
 
@@ -18,22 +19,26 @@ class DataRepository:
         return gegevens
 
     # vul hier de verschillende functies aan om je database aan te spreken
+    @staticmethod
+    def read_metingen():
+        sql = "SELECT hoeveelheid,meetdatum,actiecode,device,beschrijving,meeteenheid FROM tbl_metingen m LEFT JOIN tbl_devices d ON d.IDdevice = m.device_id ORDER BY meetdatum DESC"
+        return Database.get_rows(sql)
 
     @staticmethod
     def read_history():
-        sql = "SELECT hoeveelheid,meetdatum FROM tbl_metingen ORDER BY meetdatum"
+        sql = "SELECT hoeveelheid,meetdatum FROM tbl_metingen WHERE device_id = 1 AND actiecode = 'REMOVE' ORDER BY meetdatum"
         return Database.get_rows(sql)
 
     @staticmethod
     def read_history_day():
-        sql = "SELECT hoeveelheid,meetdatum FROM tbl_metingen WHERE meetdatum between %s and %s ORDER BY meetdatum"
+        sql = "SELECT hoeveelheid,meetdatum FROM tbl_metingen WHERE device_id = 1 AND actiecode = 'REMOVE' AND meetdatum between %s and %s ORDER BY meetdatum"
         params = [today, tomorrow]
-        
+
         return Database.get_rows(sql, params)
 
     @staticmethod
     def read_history_week():
-        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,meetdatum FROM tbl_metingen WHERE meetdatum BETWEEN %s AND %s GROUP BY CAST(meetdatum AS DATE) ORDER BY meetdatum"
+        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,meetdatum FROM tbl_metingen WHERE device_id = 1 AND meetdatum BETWEEN %s AND %s GROUP BY CAST(meetdatum AS DATE) ORDER BY meetdatum"
         params = [week, tomorrow]
         return Database.get_rows(sql, params)
 
@@ -57,8 +62,14 @@ class DataRepository:
 
     @staticmethod
     def add_hoeveelheid(hoeveelheid):
-        sql = "INSERT INTO tbl_metingen (device_id,hoeveelheid) VALUES (%s,%s)"
-        params = [1, hoeveelheid]
+        sql = "INSERT INTO tbl_metingen (device_id,hoeveelheid,actiecode) VALUES (%s,%s,%s)"
+        params = [1, hoeveelheid,"ADD"]
+        return Database.execute_sql(sql, params)
+
+    @staticmethod
+    def add_eaten(hoeveelheid):
+        sql = "INSERT INTO tbl_metingen (device_id,hoeveelheid,actiecode) VALUES (%s,%s,%s)"
+        params = [1, hoeveelheid,"REMOVE"]
         return Database.execute_sql(sql, params)
 
     @staticmethod
@@ -76,6 +87,17 @@ class DataRepository:
     @staticmethod
     def ldr_inlezen(hoeveelheid):
         sql = "INSERT INTO tbl_metingen (device_id,hoeveelheid,actiecode) VALUES (%s,%s,%s)"
-        params = [4, hoeveelheid,"CHECK"]
+        params = [4, hoeveelheid, "CHECK"]
         return Database.execute_sql(sql, params)
 
+    @staticmethod
+    def servo_on():
+        sql = "INSERT INTO tbl_metingen (device_id,hoeveelheid,actiecode) VALUES (%s,%s,%s)"
+        params = [5, 0, "ON"]
+        return Database.execute_sql(sql, params)
+
+    @staticmethod
+    def servo_off():
+        sql = "INSERT INTO tbl_metingen (device_id,hoeveelheid,actiecode) VALUES (%s,%s,%s)"
+        params = [5, 0, "OFF"]
+        return Database.execute_sql(sql, params)

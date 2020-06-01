@@ -16,6 +16,7 @@ from repositories.RGB import RGB
 from repositories.Servo import Servo
 from repositories.MCP3008 import MCP3008
 from repositories.HX711 import HX711
+from repositories.LCD import LCD
 
 
 # Start app
@@ -26,24 +27,31 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 CORS(app)
 
 # pins
-
-
 pin_servo = 21
 
 pins_rgb = [4, 17, 27]
 
 pins_load_voederbak = [5, 6]
 
-pins_lcd_data = [16, 12, 25, 24, 23, 26, 19, 13]
-pin_lcd_rs = 18
-pin_lcd_e = 3
+# E, RS, D0, D1 , D2, D3, D4, D5, D6, D7
+pins_lcd = [20, 18, 16, 12, 25, 24, 23, 26, 19, 13]
 
 pin_hx711_data = 5
 pin_hx711_clock = 6
 
+# def setup():
+GPIO.cleanup()
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+servo = Servo(pin_servo)
+hx = HX711(pins_load_voederbak[0], pins_load_voederbak[1])
+mcp = MCP3008()
+rgb_led = RGB(pins_rgb)
+display = LCD(pins_lcd)
+
 
 # data
-gewicht_voederbak = 200
+gewicht_voederbak = 100
 gewicht_voederbak_huidig = 0
 
 
@@ -99,7 +107,6 @@ def add_hoeveelheid():
         gegevens = DataRepository.json_or_formdata(request)
         data = DataRepository.add_hoeveelheid(
             gegevens['hoeveelheid'])
-        # fill(gevens['hoeveelheid'])
 
         return jsonify(data), 201
 
@@ -122,7 +129,15 @@ def app_settings():
             return jsonify("ERROR: Update niet gelukt"), 404
 
 
+@app.route(endpoint + '/metingen', methods=['GET'])
+def read_metingen():
+    if request.method == 'GET':
+        s = DataRepository.read_metingen()
+        return jsonify(s), 200
+
 # SOCKET IO
+
+
 @socketio.on('connect')
 def initial_connection():
     print('A new client connect')
@@ -135,68 +150,94 @@ def add_hoeveelheid_socket(data):
 
 
 def fill(data):
-    global pin_servo, gewicht_voederbak, gewicht_voederbak_huidig
-    servo = Servo(pin_servo)
+    global gewicht_voederbak, gewicht_voederbak_huidig
 
     hoeveelheid = int(data['hoeveelheid'])
     print(gewicht_voederbak+hoeveelheid, gewicht_voederbak_huidig)
 
-    while(0+hoeveelheid >= gewicht_voederbak_huidig):
+    while(gewicht_voederbak+hoeveelheid >= gewicht_voederbak_huidig):
         servo.start()
+        data = DataRepository.servo_on()
         # gewicht_voederbak_huidig += 50
         print(f"Huidig gewicht: {gewicht_voederbak_huidig}")
+
         time.sleep(1)
     else:
         servo.stop()
+        data = DataRepository.servo_off()
         gewicht_voederbak = gewicht_voederbak_huidig
 
 
 def ldr_inlezen():
-    global pins_rgb
-    mcp = MCP3008()
-    rgb = RGB(pins_rgb)
-
     while True:
 
         waarde_ldr = mcp.read_channel(0)
         if(waarde_ldr > 500):
-            rgb.led_branden([1, 1, 1])
+            rgb_led.led_branden([1, 1, 1])
         else:
-            rgb.led_doven()
+            rgb_led.led_doven()
 
         data = DataRepository.ldr_inlezen(waarde_ldr)
         time.sleep(5)
 
 
 def gewicht_inlezen_voederbak():
-    hx = HX711(pins_load_voederbak[0], pins_load_voederbak[1])
     hx.set_reading_format("MSB", "MSB")
     hx.set_reference_unit(413)
     hx.reset()
     hx.tare()
-    global gewicht_voederbak_huidig
+    global gewicht_voederbak_huidig, gewicht_voederbak
+    gewicht_voederbak = max(0, int(hx.get_weight(5)))
     while True:
-        gewicht_voederbak_huidig = max(0, int(hx.get_weight(5)))
-        print(f"{gewicht_voederbak_huidig}g")
+        hx_meting = max(0, int(hx.get_weight(5)))
+
+        if(hx_meting != gewicht_voederbak_huidig):
+            gewicht_voederbak_huidig = hx_meting
+
+            verschil = gewicht_voederbak_huidig - \
+                gewicht_voederbak  # VERSCHIL TUSSEN VORIGE WAARDE
+            gewicht_voederbak = gewicht_voederbak_huidig  # NIEUW VASTE WAARDE
+            if(verschil < 0):  # pet has eaten
+                data = DataRepository.add_eaten(abs(verschil))
+            print(
+                f"WIJZIGING {gewicht_voederbak_huidig}g - verschil: {verschil}")
+
+        else:
+            gewicht_voederbak_huidig = hx_meting
+            print(f"{gewicht_voederbak_huidig}g")
+
         hx.power_down()
         hx.power_up()
         time.sleep(1)
 
 
-def setup():
-    GPIO.cleanup()
-    GPIO.setmode(GPIO.BCM)
+def ip_tonen():
+    while True:
+        display.write_status()
+        time.sleep(10)
 
-setup()
 
-ldr_proces = threading.Thread(target=ldr_inlezen)
-ldr_proces.start()
+def start_processen():
+    ldr_proces = threading.Thread(target=ldr_inlezen)
+    ldr_proces.start()
+    gewicht_voederbak_proces = threading.Thread(
+        target=gewicht_inlezen_voederbak)
+    gewicht_voederbak_proces.start()
+    ip_proces = threading.Thread(target=ip_tonen)
+    ip_proces.start()
 
-gewicht_voederbak_proces = threading.Thread(
-    target=gewicht_inlezen_voederbak)
-gewicht_voederbak_proces.start()
 
 # Start app
 if __name__ == '__main__':
     print("** SmartPET start **")
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+    try:
+        # setup()
+        start_processen()
+
+        socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+    except KeyboardInterrupt as ex:
+        print(ex)
+    finally:
+
+        GPIO.cleanup()
+        print("finish")

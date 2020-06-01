@@ -5,8 +5,7 @@ import time
 class Servo:
 
     def __init__(self, pin, speed=50):
-        
-
+        GPIO.setmode(GPIO.BCM)
         GPIO.setup(pin, GPIO.OUT)
 
         self.servo = GPIO.PWM(pin, 50)
