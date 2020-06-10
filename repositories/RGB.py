@@ -5,11 +5,12 @@ import time
 
 class RGB:
     def __init__(self, pins):
-        GPIO.setmode(GPIO.BCM)
+        
         self.led_red = pins[0]
         self.led_green = pins[1]
         self.led_blue = pins[2]
 
+        GPIO.setmode(GPIO.BCM)
         #GPIO.setup(pins, GPIO.OUT)
         GPIO.setup(self.led_red, GPIO.OUT)
         GPIO.setup(self.led_green, GPIO.OUT)

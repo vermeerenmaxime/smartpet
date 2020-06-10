@@ -1,6 +1,6 @@
 # pylint: skip-file
 from .Database import Database
-from datetime import date, timedelta
+from datetime import date, timedelta,datetime
 
 today = date.today()
 tomorrow = date.today() + timedelta(1)
@@ -31,34 +31,59 @@ class DataRepository:
 
     @staticmethod
     def read_history_day():
-        sql = "SELECT hoeveelheid,meetdatum FROM tbl_metingen WHERE device_id = 1 AND actiecode = 'REMOVE' AND meetdatum between %s and %s ORDER BY meetdatum"
+        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,count(meetdatum) as `aantal` ,meetdatum FROM tbl_metingen WHERE device_id = 1 AND actiecode = 'REMOVE' AND meetdatum between %s and %s GROUP BY concat(hour(meetdatum),minute(meetdatum))"
         params = [today, tomorrow]
-
+        #print(Database.get_rows(sql, params))
         return Database.get_rows(sql, params)
 
     @staticmethod
     def read_history_week():
-        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,meetdatum FROM tbl_metingen WHERE device_id = 1 AND meetdatum BETWEEN %s AND %s GROUP BY CAST(meetdatum AS DATE) ORDER BY meetdatum"
+        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,meetdatum FROM tbl_metingen WHERE device_id = 1 AND actiecode = 'REMOVE' AND meetdatum BETWEEN %s AND %s GROUP BY CAST(meetdatum AS DATE) ORDER BY meetdatum"
         params = [week, tomorrow]
         return Database.get_rows(sql, params)
 
     @staticmethod
     def read_history_month():
-        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,meetdatum,month(meetdatum) as `month` FROM tbl_metingen WHERE meetdatum BETWEEN %s AND %s GROUP BY month(meetdatum) ORDER BY meetdatum"
+        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,meetdatum,month(meetdatum) as `month` FROM tbl_metingen WHERE device_id = 1 AND actiecode = 'REMOVE' AND meetdatum BETWEEN %s AND %s GROUP BY month(meetdatum) ORDER BY meetdatum"
         params = [month, tomorrow]
         return Database.get_rows(sql, params)
 
     @staticmethod
     def read_history_year():
-        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,meetdatum, year(meetdatum) as `year` FROM tbl_metingen WHERE meetdatum BETWEEN %s AND %s GROUP BY year(meetdatum) ORDER BY meetdatum"
+        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,meetdatum, year(meetdatum) as `year` FROM tbl_metingen WHERE device_id = 1 AND actiecode = 'REMOVE' AND meetdatum BETWEEN %s AND %s GROUP BY year(meetdatum) ORDER BY meetdatum"
         params = [year, tomorrow]
         return Database.get_rows(sql, params)
 
     @staticmethod
-    def read_feed_average(days=30):
-        sql = "SELECT avg(tbl_metingen_by_day.sum_hoeveelheid_day) as `avg_hoeveelheid_day` FROM(SELECT sum(hoeveelheid) as `sum_hoeveelheid_day`, cast(meetdatum as date) as `meetdatum` FROM tbl_metingen GROUP BY CAST(meetdatum AS DATE)) as tbl_metingen_by_day"
+    def read_history_date(datum):
+        sql = "SELECT sum(hoeveelheid) as `hoeveelheid`,count(meetdatum) as `aantal` ,meetdatum FROM tbl_metingen WHERE device_id = 1 AND actiecode = 'REMOVE' AND meetdatum between %s and %s GROUP BY concat(hour(meetdatum),minute(meetdatum))"  
+        params = [datum, (datetime.strptime(datum,"%Y-%m-%d")+timedelta(1))]
+        #print(Database.get_rows(sql, params))
+        return Database.get_rows(sql, params)
+
+    @staticmethod
+    def read_fillhistory_day():
+        sql = "SELECT hoeveelheid,meetdatum,meeteenheid FROM tbl_metingen m LEFT JOIN tbl_devices d ON d.IDdevice = m.device_id WHERE device_id = 1 AND actiecode = 'ADD' AND meetdatum between %s and %s ORDER BY meetdatum DESC"
+        params = [week, tomorrow]
+
+        return Database.get_rows(sql, params)
+
+        
+        
+
+    @staticmethod
+    def read_feed_average(days):
+        sql = "SELECT avg(tbl_metingen_by_day.sum_hoeveelheid_day) as `avg_hoeveelheid_day` FROM(SELECT sum(hoeveelheid) as `sum_hoeveelheid_day`, cast(meetdatum as date) as `meetdatum` FROM tbl_metingen WHERE device_id = 1 AND actiecode = 'REMOVE' GROUP BY CAST(meetdatum AS DATE)) as tbl_metingen_by_day"
 
         return Database.get_one_row(sql)
+
+    @staticmethod
+    def read_feed_count_today(days):
+        sql = "SELECT count(idmeting) as 'count_eats',device_id,meetdatum FROM `tbl_metingen` where actiecode = 'remove' and day(meetdatum)= day(now()) group by day(meetdatum)"
+
+        return Database.get_one_row(sql)
+
+
 
     @staticmethod
     def add_hoeveelheid(hoeveelheid):

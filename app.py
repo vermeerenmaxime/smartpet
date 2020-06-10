@@ -17,6 +17,7 @@ from repositories.Servo import Servo
 from repositories.MCP3008 import MCP3008
 from repositories.HX711 import HX711
 from repositories.LCD import LCD
+from repositories.Afstand import Ultrasonic
 
 
 # Start app
@@ -39,20 +40,24 @@ pins_lcd = [20, 18, 16, 12, 25, 24, 23, 26, 19, 13]
 pin_hx711_data = 5
 pin_hx711_clock = 6
 
+pins_ultrasonic = [2,3]
+
 # def setup():
 GPIO.cleanup()
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
-servo = Servo(pin_servo)
+
 hx = HX711(pins_load_voederbak[0], pins_load_voederbak[1])
 mcp = MCP3008()
 rgb_led = RGB(pins_rgb)
 display = LCD(pins_lcd)
 
 
+
 # data
-gewicht_voederbak = 100
+gewicht_voederbak = 0
 gewicht_voederbak_huidig = 0
+gewicht_voederbak_vorig = 0
 
 
 # endpoint
@@ -94,10 +99,31 @@ def get_history_year():
         return jsonify(s), 200
 
 
+@app.route(endpoint + '/history/date/<date>', methods=['GET'])
+def get_history_date(date):
+    if request.method == 'GET':
+        s = DataRepository.read_history_date(date)
+        return jsonify(s), 200
+
+
+@app.route(endpoint + '/fillhistory/day', methods=['GET'])
+def get_fillhistory_day():
+    if request.method == 'GET':
+        s = DataRepository.read_fillhistory_day()
+        return jsonify(s), 200
+
+
 @app.route(endpoint + '/feedaverage/<days>', methods=['GET'])
 def get_feed_average(days):
     if request.method == 'GET':
         s = DataRepository.read_feed_average(days)
+        return jsonify(s), 200
+
+
+@app.route(endpoint + '/feedcount/<days>', methods=['GET'])
+def get_feed_count_today(days):
+    if request.method == 'GET':
+        s = DataRepository.read_feed_count_today(days)
         return jsonify(s), 200
 
 
@@ -150,22 +176,22 @@ def add_hoeveelheid_socket(data):
 
 
 def fill(data):
-    global gewicht_voederbak, gewicht_voederbak_huidig
+    global gewicht_voederbak, gewicht_voederbak_huidig, gewicht_voederbak_vorig
 
     hoeveelheid = int(data['hoeveelheid'])
-    print(gewicht_voederbak+hoeveelheid, gewicht_voederbak_huidig)
-
-    while(gewicht_voederbak+hoeveelheid >= gewicht_voederbak_huidig):
+    #print(gewicht_voederbak_vorig, hoeveelheid)
+    servo = Servo(pin_servo)
+    while(gewicht_voederbak_vorig+hoeveelheid >= gewicht_voederbak_huidig):
         servo.start()
         data = DataRepository.servo_on()
         # gewicht_voederbak_huidig += 50
-        print(f"Huidig gewicht: {gewicht_voederbak_huidig}")
-
+        print(
+            f"Vorig: {gewicht_voederbak_vorig} {hoeveelheid} Huidig gewicht: {gewicht_voederbak_huidig}")
         time.sleep(1)
     else:
         servo.stop()
         data = DataRepository.servo_off()
-        gewicht_voederbak = gewicht_voederbak_huidig
+        gewicht_voederbak_vorig = gewicht_voederbak_huidig
 
 
 def ldr_inlezen():
@@ -174,10 +200,13 @@ def ldr_inlezen():
         waarde_ldr = mcp.read_channel(0)
         if(waarde_ldr > 500):
             rgb_led.led_branden([1, 1, 1])
+            socketio.emit('B2F_rgb', "white")
+            data = DataRepository.ldr_inlezen(waarde_ldr)
+            print("LDR Branden", socketio.emit('B2F_rgb', "white"))
         else:
             rgb_led.led_doven()
+            socketio.emit('B2F_rgb', 0)
 
-        data = DataRepository.ldr_inlezen(waarde_ldr)
         time.sleep(5)
 
 
@@ -186,12 +215,12 @@ def gewicht_inlezen_voederbak():
     hx.set_reference_unit(413)
     hx.reset()
     hx.tare()
-    global gewicht_voederbak_huidig, gewicht_voederbak
+    global gewicht_voederbak_huidig, gewicht_voederbak, gewicht_voederbak_vorig
     gewicht_voederbak = max(0, int(hx.get_weight(5)))
     while True:
         hx_meting = max(0, int(hx.get_weight(5)))
-
-        if(hx_meting != gewicht_voederbak_huidig):
+        socketio.emit('B2F_current_weight_bowl', hx_meting)
+        if(hx_meting != gewicht_voederbak_huidig and hx_meting != gewicht_voederbak_huidig+1):
             gewicht_voederbak_huidig = hx_meting
 
             verschil = gewicht_voederbak_huidig - \
@@ -199,12 +228,20 @@ def gewicht_inlezen_voederbak():
             gewicht_voederbak = gewicht_voederbak_huidig  # NIEUW VASTE WAARDE
             if(verschil < 0):  # pet has eaten
                 data = DataRepository.add_eaten(abs(verschil))
+                gewicht_voederbak_vorig = gewicht_voederbak
+                socketio.emit('B2F_food_eaten',verschil)
+            else:
+                socketio.emit('B2F_food_add')
             print(
                 f"WIJZIGING {gewicht_voederbak_huidig}g - verschil: {verschil}")
 
         else:
             gewicht_voederbak_huidig = hx_meting
-            print(f"{gewicht_voederbak_huidig}g")
+            # print(f"{gewicht_voederbak_huidig}g")
+
+        # if(hx_meting < 50):
+        #     fill({"hoeveelheid": 25})
+        
 
         hx.power_down()
         hx.power_up()
@@ -216,16 +253,36 @@ def ip_tonen():
         display.write_status()
         time.sleep(10)
 
+def afstand_meten():
+    afstandsensor = Ultrasonic(pins_ultrasonic)
+    while True:
+        afstand = afstandsensor.meten()
+        if(afstand>10):
+            print("WAJOO LANG")
+            
+        else:
+            print("WAJOO KORT")
+            gewicht_inlezen_voederbak()
+
+
+        time.sleep(1)
 
 def start_processen():
-    ldr_proces = threading.Thread(target=ldr_inlezen)
-    ldr_proces.start()
-    gewicht_voederbak_proces = threading.Thread(
-        target=gewicht_inlezen_voederbak)
-    gewicht_voederbak_proces.start()
-    ip_proces = threading.Thread(target=ip_tonen)
-    ip_proces.start()
 
+    ldr_proces.start()
+    # gewicht_voederbak_proces.start()
+    ip_proces.start()
+    afstand_proces.start();
+
+
+# processen
+ldr_proces = threading.Thread(target=ldr_inlezen)
+# ldr_proces_timer = threading.Timer(0, ldr_proces).start()
+# thread.kill()
+
+gewicht_voederbak_proces = threading.Thread(target=gewicht_inlezen_voederbak)
+ip_proces = threading.Thread(target=ip_tonen)
+afstand_proces = threading.Thread(target=afstand_meten)
 
 # Start app
 if __name__ == '__main__':
@@ -233,11 +290,9 @@ if __name__ == '__main__':
     try:
         # setup()
         start_processen()
-
         socketio.run(app, host="0.0.0.0", port=5000, debug=False)
     except KeyboardInterrupt as ex:
         print(ex)
     finally:
-
         GPIO.cleanup()
         print("finish")
