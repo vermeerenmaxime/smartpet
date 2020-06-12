@@ -79,11 +79,21 @@ class DataRepository:
 
     @staticmethod
     def read_feed_count_today(days):
-        sql = "SELECT count(idmeting) as 'count_eats',device_id,meetdatum FROM `tbl_metingen` where actiecode = 'remove' and day(meetdatum)= day(now()) group by day(meetdatum)"
+        sql = "select count(count_eats) as 'count_eats' from (SELECT count(idmeting) as 'count_eats',device_id,meetdatum FROM `tbl_metingen` where actiecode = 'remove' and day(meetdatum)= day(now()) group by concat(hour(meetdatum),minute(meetdatum))) as tabel group by device_id"
 
         return Database.get_one_row(sql)
 
+    @staticmethod
+    def read_feed_today():
+        sql = "SELECT sum(hoeveelheid) as 'sum_hoeveelheid',device_id,meetdatum FROM `tbl_metingen` where actiecode = 'remove' and day(meetdatum)= day(now()) group by day(meetdatum)"
 
+        return Database.get_one_row(sql)
+
+    @staticmethod
+    def read_wijzigingen():
+        sql = "SELECT daily_goal, daily_range, opslag, datum FROM tbl_settings ORDER BY datum DESC"
+
+        return Database.get_rows(sql)
 
     @staticmethod
     def add_hoeveelheid(hoeveelheid):
@@ -99,13 +109,13 @@ class DataRepository:
 
     @staticmethod
     def update_settings(daily_goal, daily_range):
-        sql = "UPDATE tbl_settings SET daily_goal = %s, daily_range = %s WHERE IDsettings = 1"
+        sql = "UPDATE tbl_settings SET daily_goal = %s, daily_range = %s WHERE IDsettings = (select idsettings from tbl_settings order by idsettings desc limit 1)"
         params = [daily_goal, daily_range]
         return Database.execute_sql(sql, params)
 
     @staticmethod
     def read_settings():
-        sql = "SELECT daily_goal, daily_range, appname, datum FROM tbl_settings WHERE IDsettings = 1"
+        sql = "SELECT daily_goal, daily_range, opslag, appname, datum FROM tbl_settings WHERE IDsettings = (select idsettings from tbl_settings order by idsettings desc limit 1)"
 
         return Database.get_one_row(sql)
 
@@ -125,4 +135,18 @@ class DataRepository:
     def servo_off():
         sql = "INSERT INTO tbl_metingen (device_id,hoeveelheid,actiecode) VALUES (%s,%s,%s)"
         params = [5, 0, "OFF"]
+        return Database.execute_sql(sql, params)
+
+    @staticmethod
+    def opslag_legen(hoeveelheid):
+        sql = "UPDATE tbl_settings set opslag = opslag - %s WHERE IDsettings = (select idsettings from tbl_settings order by idsettings desc limit 1)"
+        params = [hoeveelheid]
+        return Database.execute_sql(sql, params)
+
+    @staticmethod
+    def opslag_vullen(daily_goal,daily_range,opslag,appname):
+        # sql = "UPDATE tbl_settings set opslag = opslag + %s WHERE IDsettings = (select idsettings from tbl_settings order by idsettings desc limit 1)"
+        # sql = "UPDATE tbl_settings set opslag = opslag + %s WHERE IDsettings = (select idsettings from tbl_settings order by idsettings desc limit 1)"
+        sql = "INSERT INTO tbl_settings (daily_goal, daily_range,opslag,appname) VALUES (%s,%s,%s,%s)"
+        params = [daily_goal,daily_range,opslag,appname]
         return Database.execute_sql(sql, params)

@@ -209,97 +209,109 @@ def fill(data):
 
 
 def ldr_inlezen():
-    waarde_ldr=mcp.read_channel(0)
-    if(waarde_ldr > 500):
-        rgb_led.led_branden([1, 1, 1])
-        socketio.emit('B2F_rgb', 1)
-        data=DataRepository.ldr_inlezen(waarde_ldr)
-    else:
-        rgb_led.led_doven()
-        socketio.emit('B2F_rgb', 0)
+    while True:
 
-    threading.Timer(5,ldr_inlezen).start()
+        waarde_ldr=mcp.read_channel(0)
+        if(waarde_ldr > 500):
+            rgb_led.led_branden([1, 1, 1])
+            socketio.emit('B2F_rgb', 1)
+            data=DataRepository.ldr_inlezen(waarde_ldr)
 
-def gewicht_inlezen_voederbak_setup():
-    global gewicht_voederbak
+        else:
+            rgb_led.led_doven()
+            socketio.emit('B2F_rgb', 0)
+
+        time.sleep(5)
+
+
+def gewicht_inlezen_voederbak():
     hx.set_reading_format("MSB", "MSB")
     hx.set_reference_unit(413)
     hx.reset()
     hx.tare()
-    
+    global gewicht_voederbak_huidig, gewicht_voederbak, gewicht_voederbak_vorig
     gewicht_voederbak=max(0, int(hx.get_weight(5)))
+    while True:
+        hx_meting=max(0, int(hx.get_weight(5)))
+        socketio.emit('B2F_current_weight_bowl', hx_meting)
+        if(hx_meting != gewicht_voederbak_huidig and hx_meting != gewicht_voederbak_huidig+1):
+            gewicht_voederbak_huidig=hx_meting
 
-def gewicht_inlezen_voederbak():
-    global gewicht_voederbak, gewicht_voederbak_huidig, gewicht_voederbak_vorig
-    
-    hx_meting=max(0, int(hx.get_weight(5)))
-    socketio.emit('B2F_current_weight_bowl', hx_meting)
-    if(hx_meting != gewicht_voederbak_huidig and hx_meting != gewicht_voederbak_huidig+1):
-        gewicht_voederbak_huidig=hx_meting
+            verschil=gewicht_voederbak_huidig - \
+                gewicht_voederbak  # VERSCHIL TUSSEN VORIGE WAARDE
+            gewicht_voederbak=gewicht_voederbak_huidig  # NIEUW VASTE WAARDE
+            if(verschil < 0):  # pet has eaten
+                data=DataRepository.add_eaten(abs(verschil))
+                gewicht_voederbak_vorig=gewicht_voederbak
+                socketio.emit('B2F_food_eaten', verschil)
+            else:
+                socketio.emit('B2F_food_add')
+            print(
+                f"WIJZIGING {gewicht_voederbak_huidig}g - verschil: {verschil}")
 
-        verschil=gewicht_voederbak_huidig - \
-            gewicht_voederbak  # VERSCHIL TUSSEN VORIGE WAARDE
-        gewicht_voederbak=gewicht_voederbak_huidig  # NIEUW VASTE WAARDE
-        if(verschil < 0):  # pet has eaten
-            data=DataRepository.add_eaten(abs(verschil))
-            gewicht_voederbak_vorig=gewicht_voederbak
-            socketio.emit('B2F_food_eaten', verschil)
         else:
-            socketio.emit('B2F_food_add')
-        print(
-            f"WIJZIGING {gewicht_voederbak_huidig}g - verschil: {verschil}")
+            gewicht_voederbak_huidig=hx_meting
+            # print(f"{gewicht_voederbak_huidig}g")
 
-    else:
-        gewicht_voederbak_huidig=hx_meting
-        # print(f"{gewicht_voederbak_huidig}g")
+        if(hx_meting < 50):
 
-    if(hx_meting < 50):
+            gewicht_gegeten_vandaag=DataRepository.read_feed_today()
+            if(gewicht_gegeten_vandaag):
+                socketio.emit("B2F_feed_today",gewicht_gegeten_vandaag['sum_hoeveelheid'])
+            else:
+                socketio.emit("B2F_feed_today",0)
+            # print(gewicht_gegeten_vandaag['sum_hoeveelheid'])
 
-        gewicht_gegeten_vandaag=DataRepository.read_feed_today()
-        if(gewicht_gegeten_vandaag):
-            socketio.emit("B2F_feed_today",gewicht_gegeten_vandaag['sum_hoeveelheid'])
-        else:
-            socketio.emit("B2F_feed_today",0)
-        # print(gewicht_gegeten_vandaag['sum_hoeveelheid'])
+            # if(gewicht_gegeten_vandaag['sum_hoeveelheid'] < daily_goal+daily_range):
+            #     fill({"hoeveelheid": 25})
+            # else:
+            #     print("Teveel gegeten, voederbak wordt nietmeer automatisch bijgevuld")
+        
+        opslag = DataRepository.read_settings()
+        if(opslag['opslag'] < 100):
+            # print("hoi")
+            socketio.emit("B2F_notification","De opslag is bijna leeg! Vul hem zo snel mogelijk aan.")
 
-        # if(gewicht_gegeten_vandaag['sum_hoeveelheid'] < daily_goal+daily_range):
-        #     fill({"hoeveelheid": 25})
-        # else:
-        #     print("Teveel gegeten, voederbak wordt nietmeer automatisch bijgevuld")
-    
-    opslag = DataRepository.read_settings()
-    if(opslag['opslag'] < 100):
-        # print("hoi")
-        socketio.emit("B2F_notification","De opslag is bijna leeg! Vul hem zo snel mogelijk aan.")
+        hx.power_down()
+        hx.power_up()
+        time.sleep(1)
 
-    hx.power_down()
-    hx.power_up()
-    
 
 def ip_tonen():
-    display.write_status()
-    threading.Timer(10,ip_tonen).start()
+    while True:
+        display.write_status()
+        time.sleep(10)
 
 def afstand_meten():
-    # afstand=afstandsensor.meten()
 
-    if(10 < 25):
-        print("Beweging voor voederbak")
-        gewicht_inlezen_voederbak()
+    while True:
+        afstand=afstandsensor.meten()
+        # print(afstand)
+        if(afstand > 25):
+            print("Geen beweging voor voederbak")
+
+        else:
+            print("Beweging voor voederbak")
+            gewicht_inlezen_voederbak()
+            # gewicht_voederbak_proces.start()
+
         time.sleep(1)
-    else:
-        print("Geen beweging voor voederbak")
-        
-    threading.Timer(0.2,afstand_meten).start()
 
 def start_processen():
-    gewicht_inlezen_voederbak_setup()
-    ldr_inlezen()
+    ldr_proces.start()
     # gewicht_voederbak_proces.start()
-    ip_tonen()
-    afstand_meten()
-    # threading.Timer(2,afstand_meten).start() # wachten met afstand 2 seconden
+    ip_proces.start()
+    afstand_proces.start();
 
+
+# processen
+ldr_proces=threading.Thread(target=ldr_inlezen)
+# ldr_proces_timer = threading.Timer(0, ldr_proces).start()
+# thread.kill()
+
+gewicht_voederbak_proces=threading.Thread(target=gewicht_inlezen_voederbak)
+ip_proces=threading.Thread(target=ip_tonen)
+afstand_proces=threading.Timer(2,afstand_meten)
 
 # Start app
 start_processen()
