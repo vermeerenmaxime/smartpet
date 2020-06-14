@@ -13,6 +13,9 @@ class Servo:
     def start(self):
         self.servo.start(6)
 
+    def start_links(self):
+        self.servo.start(12)
+
     def stop(self):
         self.servo.stop()
 

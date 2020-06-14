@@ -58,6 +58,7 @@ afstandsensor = Ultrasonic(pins_ultrasonic)
 gewicht_voederbak = 0
 gewicht_voederbak_huidig = 0
 gewicht_voederbak_vorig = 0
+gewicht_voederbak_live = 0
 
 
 # endpoint
@@ -188,20 +189,31 @@ def add_opslag_socket(data):
 
 
 def fill(data):
-    global gewicht_voederbak, gewicht_voederbak_huidig, gewicht_voederbak_vorig
+    global gewicht_voederbak, gewicht_voederbak_huidig, gewicht_voederbak_live
 
     hoeveelheid=int(data['hoeveelheid'])
-    # print(gewicht_voederbak_vorig, hoeveelheid)
+    
     servo=Servo(pin_servo)
-    while(gewicht_voederbak_vorig+hoeveelheid >= gewicht_voederbak_huidig):
-        servo.start()
+    gewicht_voederbak_vorig=max(0, int(hx.get_weight(5)))
+    i = 0
+    while(gewicht_voederbak_vorig+hoeveelheid >= gewicht_voederbak_live):
+        
+        if(i%2 == 0):
+
+            servo.start()
+            print('rechts')
+        else:
+            servo.start_links()
+            print('links')
         data=DataRepository.servo_on()
-        # gewicht_voederbak_huidig += 50
+        
         print(
-            f"Vorig: {gewicht_voederbak_vorig} {hoeveelheid} Huidig gewicht: {gewicht_voederbak_huidig}")
+            f"Vorig: {gewicht_voederbak_vorig} {hoeveelheid} Huidig gewicht: {gewicht_voederbak_live}")
         data = DataRepository.opslag_legen(hoeveelheid)
 
         time.sleep(1)
+        i += 1
+
     else:
         servo.stop()
         data=DataRepository.servo_off()
@@ -210,7 +222,8 @@ def fill(data):
 
 def ldr_inlezen():
     waarde_ldr=mcp.read_channel(0)
-    if(waarde_ldr > 500):
+    
+    if(waarde_ldr > 300):
         rgb_led.led_branden([1, 1, 1])
         socketio.emit('B2F_rgb', 1)
         data=DataRepository.ldr_inlezen(waarde_ldr)
@@ -228,14 +241,24 @@ def gewicht_inlezen_voederbak_setup():
     hx.tare()
     
     gewicht_voederbak=max(0, int(hx.get_weight(5)))
+    print(gewicht_voederbak)
+    gewicht_voederbak_inlezen()
+
+def gewicht_voederbak_inlezen():
+    global gewicht_voederbak_live
+    gewicht_voederbak_live=max(0, int(hx.get_weight(5)))
+    threading.Timer(0.2,gewicht_voederbak_inlezen).start()
+    hx.power_down()
+    hx.power_up()
 
 def gewicht_inlezen_voederbak():
-    global gewicht_voederbak, gewicht_voederbak_huidig, gewicht_voederbak_vorig
+    global gewicht_voederbak_live, gewicht_voederbak, gewicht_voederbak_huidig, gewicht_voederbak_vorig, daily_goal, daily_range
     
-    hx_meting=max(0, int(hx.get_weight(5)))
-    socketio.emit('B2F_current_weight_bowl', hx_meting)
-    if(hx_meting != gewicht_voederbak_huidig and hx_meting != gewicht_voederbak_huidig+1):
-        gewicht_voederbak_huidig=hx_meting
+    #gewicht_voederbak_live=max(0, int(hx.get_weight(5)))
+    
+    socketio.emit('B2F_current_weight_bowl', gewicht_voederbak_live)
+    if(gewicht_voederbak_live != gewicht_voederbak_huidig and gewicht_voederbak_live != gewicht_voederbak_huidig+1):
+        gewicht_voederbak_huidig=gewicht_voederbak_live
 
         verschil=gewicht_voederbak_huidig - \
             gewicht_voederbak  # VERSCHIL TUSSEN VORIGE WAARDE
@@ -250,32 +273,33 @@ def gewicht_inlezen_voederbak():
             f"WIJZIGING {gewicht_voederbak_huidig}g - verschil: {verschil}")
 
     else:
-        gewicht_voederbak_huidig=hx_meting
-        # print(f"{gewicht_voederbak_huidig}g")
+        gewicht_voederbak_huidig=gewicht_voederbak_live
 
-    if(hx_meting < 50):
+    settings = DataRepository.read_settings()
+
+    if(gewicht_voederbak_live < 25):
 
         gewicht_gegeten_vandaag=DataRepository.read_feed_today()
         if(gewicht_gegeten_vandaag):
+            if(gewicht_gegeten_vandaag['sum_hoeveelheid'] < settings['daily_goal']+settings['daily_range']):
+                fill({"hoeveelheid": 5})
+                
+            else:
+                print("Teveel gegeten, voederbak wordt nietmeer automatisch bijgevuld")
             socketio.emit("B2F_feed_today",gewicht_gegeten_vandaag['sum_hoeveelheid'])
         else:
             socketio.emit("B2F_feed_today",0)
-        # print(gewicht_gegeten_vandaag['sum_hoeveelheid'])
+            fill({"hoeveelheid": 25})
 
-        # if(gewicht_gegeten_vandaag['sum_hoeveelheid'] < daily_goal+daily_range):
-        #     fill({"hoeveelheid": 25})
-        # else:
-        #     print("Teveel gegeten, voederbak wordt nietmeer automatisch bijgevuld")
+            
     
-    opslag = DataRepository.read_settings()
-    if(opslag['opslag'] < 100):
+    if(settings['opslag'] < 100):
         # print("hoi")
         socketio.emit("B2F_notification","De opslag is bijna leeg! Vul hem zo snel mogelijk aan.")
 
-    hx.power_down()
-    hx.power_up()
+    # hx.power_down()
+    # hx.power_up()
     
-
 def ip_tonen():
     display.write_status()
     threading.Timer(10,ip_tonen).start()
@@ -284,11 +308,12 @@ def afstand_meten():
     # afstand=afstandsensor.meten()
 
     if(10 < 25):
-        print("Beweging voor voederbak")
+        # print("Beweging voor voederbak")
         gewicht_inlezen_voederbak()
         time.sleep(1)
     else:
-        print("Geen beweging voor voederbak")
+        # print("Geen beweging voor voederbak")
+        pass
         
     threading.Timer(0.2,afstand_meten).start()
 
@@ -298,15 +323,14 @@ def start_processen():
     # gewicht_voederbak_proces.start()
     ip_tonen()
     afstand_meten()
+    # gewicht_voederbak_inlezen()
     # threading.Timer(2,afstand_meten).start() # wachten met afstand 2 seconden
-
 
 # Start app
 start_processen()
 if __name__ == '__main__':
     print("** SmartPET start **")
     try:
-        # setup()
         
         socketio.run(app, host="0.0.0.0", port=5000, debug=False)
     except KeyboardInterrupt as ex:
