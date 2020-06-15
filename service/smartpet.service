@@ -1,0 +1,14 @@
+[Unit]
+Description=SmartPET
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -u app.py
+WorkingDirectory=/home/pi/project1/backend
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
