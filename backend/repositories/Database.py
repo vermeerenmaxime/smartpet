@@ -39,6 +39,7 @@ class Database:
             result = cursor.fetchall()
             cursor.close()
             if (result is None):
+                result = None
                 print(ValueError(f"Resultaten zijn onbestaand.[DB Error]"))
             db.close()
         except Exception as error:

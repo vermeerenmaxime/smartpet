@@ -41,12 +41,12 @@ class Ultrasonic:
 		
 
 
-try:
-    sensor_ultrasonic = Ultrasonic([2,3])
-    while True:
-        time.sleep(1)
-        print(sensor_ultrasonic.meten())
-except KeyboardInterrupt as ex:
-    print(ex)
-finally:
-    pass
+# try:
+#     sensor_ultrasonic = Ultrasonic([2,3])
+#     while True:
+#         time.sleep(1)
+#         print(sensor_ultrasonic.meten())
+# except KeyboardInterrupt as ex:
+#     print(ex)
+# finally:
+#     pass

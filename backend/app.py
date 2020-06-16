@@ -241,6 +241,7 @@ def gewicht_inlezen_voederbak_setup():
 def gewicht_voederbak_inlezen():
     global gewicht_voederbak_live
     gewicht_voederbak_live=max(0, int(hx.get_weight(5)))
+    # print(gewicht_voederbak_live)
     threading.Timer(0.2,gewicht_voederbak_inlezen).start()
     hx.power_down()
     hx.power_up()
@@ -272,7 +273,7 @@ def gewicht_inlezen_voederbak():
     settings = DataRepository.read_settings()
 
     gewicht_gegeten_vandaag=DataRepository.read_feed_today()
-    if(gewicht_voederbak_live < 25):
+    if(gewicht_voederbak_live < 15):
         
         if(gewicht_gegeten_vandaag):
             if(gewicht_gegeten_vandaag['sum_hoeveelheid'] < settings['daily_goal']+settings['daily_range']):
@@ -301,9 +302,38 @@ def ip_tonen():
     display.write_status()
     threading.Timer(10,ip_tonen).start()
 
+def afstandmeten(trigger,echo):
+    GPIO.setup(trigger, GPIO.OUT)
+    GPIO.setup(echo, GPIO.IN)
+    # set Trigger to HIGH
+    GPIO.output(trigger, True)
+ 
+    # set Trigger after 0.01ms to LOW
+    time.sleep(0.00001)
+    GPIO.output(trigger, False)
+ 
+    StartTime = time.time()
+    StopTime = time.time()
+ 
+    # save StartTime
+    while GPIO.input(echo) == 0:
+        StartTime = time.time()
+ 
+    # save time of arrival
+    while GPIO.input(echo) == 1:
+        StopTime = time.time()
+ 
+    # time difference between start and arrival
+    TimeElapsed = StopTime - StartTime
+    # multiply with the sonic speed (34300 cm/s)
+    # and divide by 2, because there and back
+    distance = (TimeElapsed * 34300) / 2
+ 
+    return distance
 
 def afstand_meten():
     # afstand=afstandsensor.meten()
+    # afstand=afstandmeten(2, 3)
 
     if(10 < 25):
         # print("Beweging voor voederbak")
